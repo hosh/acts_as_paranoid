@@ -56,7 +56,6 @@ module Caboose #:nodoc:
           unless paranoid? # don't let AR call this twice
             cattr_accessor :deleted_attribute
             self.deleted_attribute = options[:with] || :deleted_at
-            alias_method :destroy_without_callbacks!, :destroy_without_callbacks
             class << self
               alias_method :find_every_with_deleted,    :find_every
               alias_method :calculate_with_deleted,     :calculate
@@ -74,6 +73,7 @@ module Caboose #:nodoc:
       module InstanceMethods #:nodoc:
         def self.included(base) # :nodoc:
           base.extend ClassMethods
+          base.alias_method_chain :destroy_without_transactions, :acts_as_paranoid
         end
 
         module ClassMethods
@@ -155,22 +155,22 @@ module Caboose #:nodoc:
             end
         end
 
-        def destroy_without_callbacks
+        def destroy_without_transactions_with_acts_as_paranoid
           unless new_record?
             self.class.update_all self.class.send(:sanitize_sql, ["#{self.class.deleted_attribute} = ?", (self.deleted_at = self.class.send(:current_time))]), ["#{self.class.primary_key} = ?", id]
           end
           freeze
         end
 
-        def destroy_with_callbacks!
+        def destroy_without_transactions!
           return false if callback(:before_destroy) == false
-          result = destroy_without_callbacks!
+          result = destroy_without_transactions_without_acts_as_paranoid
           callback(:after_destroy)
           result
         end
 
         def destroy!
-          transaction { destroy_with_callbacks! }
+          transaction { destroy_without_transactions_without_acts_as_paranoid }
         end
 
         def deleted?
